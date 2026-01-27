@@ -40,6 +40,7 @@ global ADDR_POSITION_X              := 0xB6F2E4      ;Player X Position
 global ADDR_POSITION_Y              := 0xB6F2E8      ;Player Y Position
 global ADDR_POSITION_Z              := 0xB6F2EC      ;Player Z Position
 global ADDR_CPED_PTR                := 0xB6F5F0      ;Player CPED Pointer
+global ADDR_CPED_Z_ROTATION         := 0x558         ;Player Z rotation
 global ADDR_CPED_HPOFF              := 0x540         ;Player Health
 global ADDR_CPED_ARMOROFF           := 0x548         ;Player Armour
 global ADDR_CPED_MONEY              := 0x0B7CE54     ;Player Money
@@ -191,6 +192,9 @@ global iRefreshScoreboard                   := 0
 global oScoreboardData                      := ""
 global iRefreshHandles                      := 0
 global iUpdateTick                          := 2500 ;time in ms, used for GetPlayerNameById etc. to refresh data
+
+global PI           := 4 * ATan(1)
+global PI_IN_DEG    := 180.0
 
 /**
  * Check if SA:MP is loaded and chat is available
@@ -3583,9 +3587,11 @@ GetPlayerCoordinates() {
 }
 
 /**
- * Get the player's current coordinates. Compared to [`GetPlayerCoordinates`](GetPlayerCoordinates),
+ * Get the player's current coordinates and Z rotation. Compared to [`GetPlayerCoordinates`](GetPlayerCoordinates),
  * this function assumes that the passed parameters are references (pass-by-reference). That means
  * that the function updates the passed variables directly.
+ *
+ * The Z rotation is queried by calling [`GetPlayerRotation`](GetPlayerRotation).
  *
  * :::note
  *
@@ -3598,9 +3604,10 @@ GetPlayerCoordinates() {
  * @param fX Variable to store X coordinate as float (pass-by-reference)
  * @param fY Variable to store Y coordinate as float (pass-by-reference)
  * @param fZ Variable to store Z coordinate as float (pass-by-reference)
+ * @param fR Variable to store Z rotation as float (pass-by-reference) (optional)
  * @returns `0` on success, `false` on failure
  */
-GetPlayerPos(ByRef fX, ByRef fY, ByRef fZ) {
+GetPlayerPos(ByRef fX, ByRef fY, ByRef fZ, ByRef fR := "") {
     if(!checkHandles())
         return 0
 
@@ -3622,7 +3629,71 @@ GetPlayerPos(ByRef fX, ByRef fY, ByRef fZ) {
         return 0
     }
 
+    if (IsByRef(fR)) {
+        fR := GetPlayerRotation()
+        if (ErrorLevel) {
+            return 0
+        }        
+    }
+
     ErrorLevel := ERROR_OK
+}
+
+/**
+ * Get the player's current Z rotation. The returning rotation is value in Degree between `-180° < x <= 180°`, where
+ * angle `x` starts at `0` when facing North, `-+180°` when facing South, and counterclockwise rotation is positive.
+ *
+ * If you need an example usage, you can take a look at [`GetPlayerFacingDirection`](GetPlayerFacingDirection), which
+ * returns a string representing the player's facing direction in compass style.
+ *
+ * @category Local Player
+ * @returns Z rotation as float, or `false` on failure
+ */
+GetPlayerRotation() {
+    if (!checkHandles())
+        return false
+
+    dwLocalPed := readMem(hGTA, ADDR_CPED_PTR, 4, "int")
+    if (ErrorLevel) {
+        ErrorLevel := ERROR_READ_MEMORY
+        return false
+    }
+
+    fRotation := readFloat(hGTA, dwLocalPed + 0x0 + ADDR_CPED_Z_ROTATION)
+    if (ErrorLevel) {
+        ErrorLevel := ERROR_READ_MEMORY
+        return false
+    }
+
+    fRotation := fRotation * PI_IN_DEG / PI
+
+    return fRotation
+}
+
+/**
+ * Returns the player's facing direction in compass style ("N", "W", ...).
+ * The compass is divided in 8 sectors "S", "SE", "E", "NE", "N", "NW", "W", "SW" (=> 1/8 of a circle).
+ * If you want to have a higher or lower resolution, take a look at or copy the implementation of this
+ * method and consider
+ *
+ * - increasing or decreasing the amount of sectors
+ * - and adjusting the `dirs` array to match its elements count with the amount of sectors.
+ *
+ * @category Local Player
+ * @returns one of the string values: `["S","SE","E","NE","N","NW","W","SW"]`, or `Unknown`
+ */
+GetPlayerFacingDirection() {
+    rot := GetPlayerRotation()
+    if (!rot) {
+        return "Unknown"
+    }
+
+    sector := PI_IN_DEG/4 ; 1/8 of circle
+    dirs := ["S", "SE", "E", "NE", "N", "NW", "W", "SW"]
+
+    _index := Mod(Floor((rot + PI_IN_DEG + sector/2) / sector), 8)
+
+    return dirs[_index + 1]
 }
 
 /**
