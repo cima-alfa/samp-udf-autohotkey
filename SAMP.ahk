@@ -1159,7 +1159,7 @@ GetVehicleId() {
 
     vehicleCount := readDWORD(hGTA, vehpool + 0x0)
 
-    Loop, % vehicleCount {
+    Loop, % vehicleCount + 1 {
         i := A_Index - 1
 
         listed := readDWORD(hGTA, vehpool + 0x3074 + i*4)
@@ -1493,9 +1493,10 @@ GetVehicleNumberPlate() {
         ErrorLevel := ERROR_READ_MEMORY
         return ""
     }
-    
-    Loop, 2000
-    {
+
+    vehicleCount := readDWORD(hGTA, vehpool + 0x0)
+
+    Loop, % vehicleCount + 1 {
         i := A_Index-1
         
         listed := readDWORD(hGTA, vehpool + 0x3074 + i*4)
